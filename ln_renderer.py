@@ -1,4 +1,4 @@
-#    Local Network Render
+#    Local Network Renderer
 #    Copyright (C) 2017 Scott Winkelmann
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,6 @@ from io import BytesIO
 from json import loads as decode_json
 from os.path import basename, dirname
 from tarfile import open as open_tar
-from time import sleep
 
 import bpy
 import requests
@@ -35,32 +34,40 @@ bl_info = {
     "location":    "Properties Panel > Render Tab",
     "description": "Adds the ability to render a blender file on the local network",
     "warning":     "",
-    "wiki_url":    "https://github.com/ScottishCyclops/",
-    "tracker_url": "https://github.com/ScottishCyclops//issues",
+    "wiki_url":    "https://github.com/ScottishCyclops/ln_renderer",
+    "tracker_url": "https://github.com/ScottishCyclops/ln_renderer/issues",
     "category":    "Render"
 }
 
+#server configuration
 password = "MwCF!@DPyv)k^SG4"
 command = "farm"
-
+#global variables
 handle = None
 active_panel = None
 canceled = False
-#header_visibility = False
-
+#warning suppresion for https requests
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
+#utility functions
+
 def post_server(data):
+    """performs a post request on the server with the given data
+
+        In case of error, the return value is None"""
     try:
-        res = requests.post("https://0.0.0.0:3001/", data=data, verify=False)
+        res = requests.post("https://10.10.20.20:3001/", data=data, verify=False)
     except Exception:
         res = None
-
     return res
 
 
 def try_parse_res(res):
+    """Try to parse a server response as JSON
+
+    If it fails, will return code 'Server not running'"""
+
     if res is not None:
         return decode_json(res.text)
     else:
@@ -68,6 +75,9 @@ def try_parse_res(res):
 
 
 def render(blend_file, animation=False):
+    """Performs a render request on the server for a given file
+    
+    Returns th parsed response"""
 
     with open(blend_file, "rb") as f:
         render_payload = \
@@ -82,6 +92,10 @@ def render(blend_file, animation=False):
 
 
 def cancel_render():
+    """Performs a cancel request on the server
+    
+    Returns th parsed response"""
+
     cancel_payload = \
     {
         "pass": password,
@@ -93,6 +107,10 @@ def cancel_render():
 
 
 def get_render_status():
+    """Performs a status request on the server
+    
+    Returns th parsed response"""
+
     status_payload = \
     {
         "pass": password,
@@ -103,19 +121,23 @@ def get_render_status():
     return try_parse_res(res)
 
 
-def retrieve_render(name, folder):
-    """retrieve the render data by name and extracts it in the given folder"""
+def retrieve_render(handle, folder):
+    """Performs a retrieve request on the server with the given handle
+    
+    The data is decompressed and written in a new subfolder inside 'folder'
+    
+    Returns th parsed response"""
+
     retrieve_render_payload = \
     {
         "pass": password,
         "command": command,
         "action": "retrieve",
-        "data": name
+        "data": handle
     }
 
     #get the tar.gz
     res = post_server(retrieve_render_payload)
-    
     payload = try_parse_res(res)
 
     if payload["code"] >= 0:
@@ -131,6 +153,8 @@ def retrieve_render(name, folder):
 
 
 def report_server_code(code, func):
+    """Translates a server code to text and reports it with the given Operator.report function"""
+
     report_type = "ERROR" if code < 0 else "WARNING" if code > 0 else "INFO"
     prefix = "LNR: "
     default_msg = "Server returned code " + str(code)
@@ -155,51 +179,41 @@ def report_server_code(code, func):
 
 
 def lnr_panel_render(self, context):
+    """Adds custom buttons for network rendering"""
+
     row = self.layout.row()
     row.operator(LnrRender.bl_idname, icon="RENDER_STILL", text="Network Render").animation = False
     row.operator(LnrRender.bl_idname, icon="RENDER_ANIMATION", text="Network Animation").animation = True
 
 
 def lnr_panel_cancel(self, context):
+    """Adds a custom button for network canceling"""
+
     row = self.layout.row()
     row.operator(LnrCancel.bl_idname, icon="CANCEL", text="Cancel Network Render")
 
-def force_redraw(context):
-    """Does not work as expected"""
-    context.window.screen.areas.update()
-
 
 def switch_panels(new, context):
+    """Switches the custom panel visible under Properties > Render
+    
+    'new' can be 'lnr_panel_render' or 'lnr_panel_cancel'"""
+
     global active_panel
 
     bpy.types.RENDER_PT_render.remove(active_panel)
     bpy.types.RENDER_PT_render.prepend(new)
     active_panel = new
-    force_redraw(context)
+    context.window.screen.areas.update()
+
 
 def progress_bar(length, progress):
+    """Returns a text progress bar of the given length with the given progress"""
+
     block = int(round(length * progress))
     return "[" + "#" * block + "-" * (length-block) + "]"
 
 
-'''
-def header_status(self, context):
-    global status
-    content = "frame: " + str(status["frame"]) + " | time left: " + status["time_left"]
-
-    self.layout.column(align=True).label(text=content)
-
-def change_status_visibility(show=True):
-    global header_visibility
-
-    if show and not header_visibility:
-        bpy.types.INFO_HT_header.append(header_status)
-        header_visibility = True
-    elif not show and header_visibility:
-        bpy.types.INFO_HT_header.remove(header_status)
-        header_visibility = False
-'''
-
+#Operators
 
 class LnrTimer(bpy.types.Operator):
     """Network Render checker"""
@@ -223,8 +237,6 @@ class LnrTimer(bpy.types.Operator):
                 if payload["code"] >= 0:
                     if payload["data"]["farm"] is 1:
                         #if the farm is stopped
-                        #change_status_visibility(False)
-
                         switch_panels(lnr_panel_render, context)
 
                         if not canceled:
@@ -237,7 +249,6 @@ class LnrTimer(bpy.types.Operator):
                             self.cancel(context)
                             return {"FINISHED"}
                     else:
-                        #change_status_visibility(True)
                         #farm running: print the data
                         data = None
                         extra_data = None
@@ -294,7 +305,8 @@ class LnrTimer(bpy.types.Operator):
                     report_server_code(payload["code"], self.report)
             else:
                 #render retrieving
-                #root folder to output retrieved data: the folder of the executed blend file
+
+                #root folder to output retrieved data
                 folder = dirname(bpy.data.filepath)
                 payload = retrieve_render(handle, folder)
 
