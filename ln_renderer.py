@@ -420,8 +420,8 @@ class LnrCancel(bpy.types.Operator):
             #if not running, swap panels
             if res["code"] == -11:
                 switch_panels(lnr_panel_render, context)
-
-        canceled = True
+        else:
+            canceled = True
 
         return {"FINISHED"}
 
