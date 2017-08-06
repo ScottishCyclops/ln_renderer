@@ -42,6 +42,7 @@ bl_info = {
 #server configuration
 password = "MwCF!@DPyv)k^SG4"
 command = "farm"
+server_ip = "0.0.0.0"
 #global variables
 handle = None
 active_panel = None
@@ -57,7 +58,7 @@ def post_server(data):
 
         In case of error, the return value is None"""
     try:
-        res = requests.post("https://10.10.20.20:3001/", data=data, verify=False)
+        res = requests.post("https://" + server_ip + ":3001/", data=data, verify=False)
     except Exception:
         res = None
     return res
@@ -311,37 +312,39 @@ class LnrTimer(bpy.types.Operator):
                 if payload["code"] != -14:
                     #si le code d'erreur n'est pas file not ready, on quittera le timer
                     #sinon, on le laisse tourner pour re-essayer
-                    if payload["code"] >= 0:
-                        #disk location of retrieved render
-                        render_folder = folder + "/" + handle
-                        #get last retrieved image
-                        last_image = max(glob.iglob(render_folder + "/*"))
-                        #name of the file in blender
-                        img_name = "Network Render Result"
-                        #replace the current render if it exists
-                        try:
-                            bpy.data.images.remove(bpy.data.images[img_name], do_unlink=True)
-                        except KeyError:
-                            pass
-                        #open image in blender
-                        bpy.ops.image.open(filepath=last_image, directory=render_folder, relative_path=False)
-                        bpy.data.images[basename(last_image)].name = img_name
+                    if folder == "":
+                        self.report({"ERROR"}, "This blendfile's root folder is null")
                     else:
-                        #report any other errors
-                        report_server_code(payload["code"], self.report)
+                        if payload["code"] >= 0:
+                            #disk location of retrieved render
+                            render_folder = folder + "/" + handle
+                            #get last retrieved image
+                            last_image = max(glob.iglob(render_folder + "/*"))
+                            #name of the file in blender
+                            img_name = "Network Render Result"
+                            #replace the current render if it exists
+                            try:
+                                bpy.data.images.remove(bpy.data.images[img_name], do_unlink=True)
+                            except KeyError:
+                                pass
+                            #open image in blender
+                            bpy.ops.image.open(filepath=last_image, directory=render_folder, relative_path=False)
+                            bpy.data.images[basename(last_image)].name = img_name
+
+                            self.report({"INFO"}, "LNR: Retrieved render data")
+                        else:
+                            #report any other errors
+                            report_server_code(payload["code"], self.report)
 
                     #quit timer
-                    self.report({"INFO"}, "LNR: Retrieved render data")
                     self.try_retrieving = False
                     self.cancel(context)
                     return {"FINISHED"}
 
-                else:
-                    print("could not retrieve render data")
         return {"PASS_THROUGH"}
 
     def execute(self, context):
-        self._timer = context.window_manager.event_timer_add(0.3, context.window)
+        self._timer = context.window_manager.event_timer_add(0.5, context.window)
         context.window_manager.modal_handler_add(self)
 
         return {"RUNNING_MODAL"}
