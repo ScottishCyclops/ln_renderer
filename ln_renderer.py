@@ -227,7 +227,6 @@ class LnrTimer(bpy.types.Operator):
     def modal(self, context, event):
         if(event.type == "TIMER"):
             global handle
-            global active_panel
             global canceled
 
             #getting status
@@ -271,7 +270,6 @@ class LnrTimer(bpy.types.Operator):
                                 time_left = str(data["time_left"]["minutes"]).rjust(2, "0") + ":" + \
                                             str(data["time_left"]["seconds"]).rjust(2, "0") + "." + \
                                             str(data["time_left"]["millis"]).rjust(2, "0")
-
                             except KeyError:
                                 pass
                             
@@ -375,7 +373,6 @@ class LnrRender(bpy.types.Operator):
 
     def execute(self, context):
         global handle
-        global active_panel
 
         if bpy.data.is_dirty:
             bpy.ops.wm.save_mainfile()
@@ -432,10 +429,6 @@ class LnrCancel(bpy.types.Operator):
 def register():
     global active_panel
 
-    #_percent_kwargs = dict(min=0.0, max=100.0, default=0.0, precision=1, subtype="PERCENTAGE", options={})
-    #bpy.types.Scene.percent_current = bpy.props.FloatProperty(name="percent_current", **_percent_kwargs)
-    #bpy.types.Scene.percent_total = bpy.props.FloatProperty(name="percent_total", **_percent_kwargs)
-
     bpy.utils.register_class(LnrTimer)
     bpy.utils.register_class(LnrRender)
     bpy.utils.register_class(LnrCancel)
@@ -445,7 +438,7 @@ def register():
 
 
 def unregister():
-    #change_status_visibility(False)
+    global active_panel
 
     bpy.types.RENDER_PT_render.remove(active_panel)
     bpy.utils.unregister_class(LnrCancel)
