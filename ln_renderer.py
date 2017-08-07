@@ -23,7 +23,8 @@ from os.path import basename, dirname
 from tarfile import open as open_tar
 
 import bpy
-import requests
+from requests import post
+from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 bl_info = {
@@ -43,26 +44,17 @@ bl_info = {
 password = "MwCF!@DPyv)k^SG4"
 command = "farm"
 server_ip = "0.0.0.0"
+server_address = "https://" + server_ip + ":3001/"
+extra_params = dict(verify=False)
 #global variables
 handle = None
 active_panel = None
 canceled = False
 #warning suppresion for https requests
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+disable_warnings(InsecureRequestWarning)
 
 
 #utility functions
-
-def post_server(data):
-    """performs a post request on the server with the given data
-
-        In case of error, the return value is None"""
-    try:
-        res = requests.post("https://" + server_ip + ":3001/", data=data, verify=False)
-    except Exception:
-        res = None
-    return res
-
 
 def try_parse_res(res):
     """Try to parse a server response as JSON
@@ -80,15 +72,20 @@ def render(blend_file, animation=False):
     
     Returns th parsed response"""
 
+    data = \
+    {
+        "pass": password,
+        "command": command,
+        "action": "anim" if animation else "still"
+    }
+
+    res = None
     with open(blend_file, "rb") as f:
-        render_payload = \
-        {
-            "pass": password,
-            "command": command,
-            "action": "anim" if animation else "still",
-            "data": b64encode(f.read())
-        }
-    res = post_server(render_payload)
+        try:
+            res = post(server_address + "upload", data=data, files={"blendfile": f}, **extra_params)
+        except Exception:
+            pass
+
     return try_parse_res(res)
 
 
@@ -97,13 +94,19 @@ def cancel_render():
     
     Returns th parsed response"""
 
-    cancel_payload = \
+    data = \
     {
         "pass": password,
         "command": command,
         "action": "cancel"
     }
-    res = post_server(cancel_payload)
+
+    res = None
+    try:
+        res = post(server_address, data=data, **extra_params)
+    except Exception:
+        pass
+
     return try_parse_res(res)
 
 
@@ -112,13 +115,19 @@ def get_render_status():
     
     Returns th parsed response"""
 
-    status_payload = \
+    data = \
     {
         "pass": password,
         "command": command,
         "action": "status"
     }
-    res = post_server(status_payload)
+
+    res = None
+    try:
+        res = post(server_address, data=data, **extra_params)
+    except Exception:
+        pass
+
     return try_parse_res(res)
 
 
@@ -129,7 +138,7 @@ def retrieve_render(handle, folder):
     
     Returns th parsed response"""
 
-    retrieve_render_payload = \
+    data = \
     {
         "pass": password,
         "command": command,
@@ -138,7 +147,12 @@ def retrieve_render(handle, folder):
     }
 
     #get the tar.gz
-    res = post_server(retrieve_render_payload)
+    res = None
+    try:
+        res = post(server_address, data=data, **extra_params)
+    except Exception:
+        pass
+    
     payload = try_parse_res(res)
 
     if payload["code"] >= 0:
