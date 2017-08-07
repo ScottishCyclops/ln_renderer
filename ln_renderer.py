@@ -15,7 +15,6 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import glob
-from base64 import b64encode
 from gzip import decompress as decompress_gzip
 from io import BytesIO
 from json import loads as decode_json
