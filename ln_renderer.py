@@ -253,7 +253,7 @@ class LnrTimer(bpy.types.Operator):
                 payload = get_render_status()
 
                 if payload["code"] >= 0:
-                    if payload["data"]["farm"] is 1:
+                    if payload["data"]["state"] is 1:
                         #if the farm is stopped
                         switch_panels(lnr_panel_render, context)
 
