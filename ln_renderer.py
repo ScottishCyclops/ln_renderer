@@ -18,6 +18,7 @@ import glob
 from gzip import decompress as decompress_gzip
 from io import BytesIO
 from json import loads as decode_json
+from json.decoder import JSONDecodeError
 from os.path import basename, dirname
 from tarfile import open as open_tar
 
@@ -42,7 +43,7 @@ bl_info = {
 #server configuration
 password = "MwCF!@DPyv)k^SG4"
 command = "farm"
-server_ip = "0.0.0.0"
+server_ip = "10.10.20.20"
 server_address = "https://" + server_ip + ":3001/"
 extra_params = dict(verify=False)
 #global variables
@@ -60,10 +61,14 @@ def try_parse_res(res):
 
     If it fails, will return code 'Server not running'"""
 
+    parsed = dict(code=-5)
     if res is not None:
-        return decode_json(res.text)
-    else:
-        return dict(code=-5)
+        try:
+            parsed = decode_json(res.text)
+        except JSONDecodeError:
+            parsed["code"] = -1
+    
+    return parsed
 
 
 def render(blend_file, animation=False):
@@ -112,7 +117,7 @@ def cancel_render():
 def get_render_status():
     """Performs a status request on the server
     
-    Returns th parsed response"""
+    Returns the parsed response"""
 
     data = \
     {
